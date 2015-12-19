@@ -60,6 +60,7 @@ export interface Namespace {
   command<A, B, C, D, E, Z>(f: (a: A, b: B, c: C, d: D, e: E) => Z, name?: string): (a: A, b: B, c: C, d: D, e: E) => Command<Z>;
   command<A, B, C, D, E, F, Z>(f: (a: A, b: B, c: C, d: D, e: E, f: F) => Z, name?: string): (a: A, b: B, c: C, d: D, e: E, f: F) => Command<Z>;
   fact<A>(name: string): FactType<A>;
+  command<A>(name: string): (a: A) => Command<A>;
 }
 
 export function Namespace (ns): Namespace {
@@ -67,7 +68,7 @@ export function Namespace (ns): Namespace {
     name = ns + '/' + name;
 
     if (nameRegistry[name]) {
-      throw new Error(`duplicate fact name '${name}'`);
+      throw new Error(`duplicate fact/command name '${name}'`);
     }
 
     nameRegistry[name] = true;
@@ -77,21 +78,33 @@ export function Namespace (ns): Namespace {
   return {
     fact<T>(name): FactType<T>  {
       name = qualify(name);
-      return fact => [name, fact];
+      const cons = fact => [name, fact];
+      cons['___fact_name___'] = name;
+      return <any>cons;
     },
     command (f, name?) {
-      if (f.___command_name___) {
-        throw new Error(`fact function used twice ${f.___command_name___}`);
-      }
-      if (arguments.length === 1) {
-        name = f.name;
-      }
+      if (typeof f === 'string') {
+        name = qualify(f);
+        const cons = command => [name, command];
+        cons['___command_name___'] = name;
+        return cons;
+      } else {
+        if (f.___command_name___) {
+          throw new Error(`fact function used twice ${f.___command_name___}`);
+        }
+        if (arguments.length === 1) {
+          name = f.name;
+        }
 
-      name = qualify(name);
+        name = qualify(name);
 
-      f.___command_name___ = name;
-      return function () {
-        return <any>[name, f.apply(null, arguments)];
+        const ret = function () {
+          return <any>[name, f.apply(null, arguments)];
+        }
+
+        ret['___command_name___'] = name;
+
+        return <any>ret;
       }
     }
   };
@@ -102,11 +115,11 @@ export function FactHub(): FactHub {
 
   return {
     reduce (cons, atom, reducer) {
-      let existing = handlers[cons.___command_name___];
+      let existing = handlers[cons.___fact_name___];
       if (existing) {
         existing.push([atom, reducer]);
       } else {
-        handlers[cons.___command_name___] = [[atom, reducer]];
+        handlers[cons.___fact_name___] = [[atom, reducer]];
       }
     },
     tell ([updateName, data]) {
@@ -127,8 +140,11 @@ export function CommandHub(factListener: FactListener): CommandHub {
 
   return {
     satisfy (cons, context, transformer) {
+      if (!cons.___command_name___) {
+        console.error('not a command', cons);
+      }
       if (handlers[cons.___command_name___]) {
-        throw new Error('commands may only be fulfilled once');
+        throw new Error('commands may only be fulfilled once: ' + cons.___command_name___);
       } else {
         handlers[cons.___command_name___] = data => {
           const facts = transformer(context.get(), data);

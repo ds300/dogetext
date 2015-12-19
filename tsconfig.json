@@ -1,5 +1,5 @@
 {
-    "compileOnSave": false,
+    "compileOnSave": true,
     "compilerOptions": {
         "target": "es5",
         "module": "commonjs",
@@ -26,7 +26,9 @@
         "src/dogetext.ts",
         "src/FactHub.ts",
         "src/Promise.ts",
-        "src/editor.tsx"
+        "src/counter.tsx",
+        "src/editor.tsx",
+        "src/index.tsx"
     ],
     "atom": {
         "rewriteTsconfig": true

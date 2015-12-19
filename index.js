@@ -1,0 +1,1 @@
+require('./tsbuild/index.js')
